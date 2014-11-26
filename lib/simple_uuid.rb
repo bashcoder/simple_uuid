@@ -2,7 +2,7 @@ class Time
   def self.stamp
     Time.now.stamp
   end
-  
+
   def stamp
     to_i * 1_000_000 + usec
   end
@@ -27,7 +27,7 @@ module SimpleUUID
       when String
         case bytes.size
         when 16 # Raw byte array
-          @bytes = bytes.respond_to?(:force_encoding) ? bytes.force_encoding("ASCII-8BIT") : bytes
+          @bytes = bytes
         when 36 # Human-readable UUID representation; inverse of #to_guid
           elements = bytes.split("-")
           raise TypeError, "Expected #{bytes.inspect} to cast to a #{self.class} (malformed UUID representation)" if elements.size != 5
@@ -117,11 +117,15 @@ module SimpleUUID
     end
 
     def <=>(other)
-      total_usecs <=> other.send(:total_usecs)
-    end
-
-    def ==(other)
-      to_s == other.to_s
+      me = to_s.unpack('Nn2C*')
+      him = other.to_s.unpack('Nn2C*')
+      # swap most significant time bits to front
+      me[0], me[2], him[0], him[2] = me[2], me[0], him[2], him[0]
+      me.zip(him) do |m, h|
+        comp = m <=> h
+        return comp if comp != 0
+      end
+      return 0
     end
 
     def inspect(long = false)
@@ -152,12 +156,12 @@ module SimpleUUID
       usecs = total_usecs(bytes)
       Time.at(usecs / 1_000_000, usecs % 1_000_000)
     end
-    
+
     # Return a time object
     def to_time
       Time.at(total_usecs / 1_000_000, total_usecs % 1_000_000)
     end
-    
+
     # Given raw bytes, return the total_usecs
     def self.total_usecs(bytes)
       elements = bytes.unpack("Nnn")
@@ -165,7 +169,7 @@ module SimpleUUID
     end
 
     private
-    
+
     def total_usecs
       @total_usecs ||= self.class.total_usecs(@bytes)
     end
